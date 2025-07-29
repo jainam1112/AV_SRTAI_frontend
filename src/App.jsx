@@ -21,35 +21,56 @@ function App() {
 
     const handleUpload = async () => {
     if (!file) return;
-    
+
     setIsUploading(true);
-    setStatus("");
-    
+    setStatus("Preparing upload...");
+    console.log("Preparing upload...");
+
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("category", category || "Miscellaneous");
-    formData.append("location", location || "Unknown");
-    formData.append("speaker", speaker || "Gurudev");
-    formData.append("satsang_name", satsangName || "");
-    formData.append("satsang_code", satsangCode || "");
-    formData.append("date", date || new Date().toISOString().split('T')[0]);
-    formData.append("misc_tags", miscTags || "");
-    
+    formData.append("category", category);
+    formData.append("location", location);
+    formData.append("speaker", speaker);
+    formData.append("satsang_name", satsangName);
+    formData.append("satsang_code", satsangCode);
+    formData.append("date", date);
+    formData.append("misc_tags", miscTags);
+
     try {
-      const res = await axios.post("http://localhost:10000/upload-transcript", formData);
-      
+      setStatus("Uploading file...");
+      console.log("Uploading file to backend...");
+
+      const res = await axios.post(
+        "http://127.0.0.1:8000/upload-transcript",
+        formData,
+        {
+          onUploadProgress: progressEvent => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setStatus(`Uploading... ${percent}%`);
+              console.log(`Uploading... ${percent}%`);
+            } else {
+              setStatus("Uploading...");
+              console.log("Uploading...");
+            }
+          }
+        }
+      );
+
+      setStatus("Processing response...");
+      console.log("Processing response from backend...");
+
       // Handle successful response with validation
       const result = res.data;
       console.log("Upload result:", result);
-      
+
       if (!result.validation) {
-        // Perfect upload - no validation field means no issues
         setStatus(`✅ Perfect upload! ${result.chunks_uploaded} chunks uploaded successfully.`);
+        console.log("Perfect upload! No validation issues.");
       } else if (result.validation.coverage_complete) {
-        // Good upload with full coverage
         setStatus(`✅ Upload successful! ${result.chunks_uploaded} chunks uploaded with ${result.validation.text_coverage_percentage.toFixed(1)}% coverage.`);
+        console.log("Upload successful with full coverage.");
       } else {
-        // Upload completed but with issues
         const issues = [];
         if (result.validation.text_coverage_percentage < 100) {
           issues.push(`${result.validation.text_coverage_percentage.toFixed(1)}% text coverage`);
@@ -60,10 +81,10 @@ function App() {
         if (result.validation.timeline_gaps_count > 0) {
           issues.push(`${result.validation.timeline_gaps_count} timeline gap(s)`);
         }
-        
+
         setStatus(`⚠️ Upload completed with issues: ${issues.join(', ')}. ${result.chunks_uploaded} chunks uploaded.`);
-        
-        // Log detailed validation info
+        console.warn("Upload completed with issues:", issues);
+
         if (result.validation.errors.length > 0) {
           console.error('Validation errors:', result.validation.errors);
         }
@@ -71,23 +92,28 @@ function App() {
           console.warn('Validation warnings:', result.validation.warnings);
         }
       }
-      
+
     } catch (error) {
       console.error("Upload error:", error);
-      
+
       if (error.response && error.response.data && error.response.data.detail) {
         if (error.response.data.detail.includes('Only .srt files are supported')) {
           setStatus("❌ Upload failed: Only .srt files are supported.");
+          console.error("Upload failed: Only .srt files are supported.");
         } else if (error.response.data.detail.includes('Transcript validation failed')) {
           setStatus("❌ Upload failed: Transcript validation errors detected. Please check your file format.");
+          console.error("Upload failed: Transcript validation errors detected.");
         } else {
           setStatus(`❌ Upload failed: ${error.response.data.detail}`);
+          console.error(`Upload failed: ${error.response.data.detail}`);
         }
       } else {
         setStatus("❌ Upload failed. Please check your inputs and try again.");
+        console.error("Upload failed. Please check your inputs and try again.");
       }
     } finally {
       setIsUploading(false);
+      console.log("Upload process finished.");
     }
   };
 
@@ -99,7 +125,7 @@ function App() {
     setStatus(""); // Clear any upload status when searching
     
     try {
-      const res = await axios.post("http://localhost:10000/search", {
+      const res = await axios.post("http://127.0.0.1:8000/search", {
         query: searchQuery
       });
       setSearchResults(res.data.results || []);
@@ -157,7 +183,7 @@ function App() {
                 <label>🏷️ Category</label>
                 <input 
                   type="text" 
-                  placeholder="e.g., Satsang, Lecture, Discussion (default: Miscellaneous)" 
+                  placeholder="e.g., Pravachan, Sadguru Udghosh, Ashirvachan" 
                   value={category} 
                   onChange={e => setCategory(e.target.value)} 
                 />
@@ -166,7 +192,7 @@ function App() {
                 <label>📍 Location</label>
                 <input 
                   type="text" 
-                  placeholder="e.g., Bangalore Ashram, Online (default: Unknown)" 
+                  placeholder="e.g.,Shrimad Rajchandra Ashram, Dharampur" 
                   value={location} 
                   onChange={e => setLocation(e.target.value)} 
                 />
@@ -178,7 +204,7 @@ function App() {
                 <label>🎤 Speaker</label>
                 <input 
                   type="text" 
-                  placeholder="e.g., Gurudev Sri Sri Ravi Shankar (default: Gurudev)" 
+                  placeholder="e.g., Pujya Gurudevshri Rakeshji, Atmarpit Nemiji" 
                   value={speaker} 
                   onChange={e => setSpeaker(e.target.value)} 
                 />
