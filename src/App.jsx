@@ -432,7 +432,7 @@ function App() {
                                 <li key={result.id || index} className="result-item">
                                     <div className="result-header">
                                         <div className="score-badge">Relevance: {(result.score * 100).toFixed(1)}%</div>
-                                        <div className="time-badge">⏱️ {result.payload.start} - {result.payload.end}</div>
+                                        <div className="time-badge">⏱️ {result.payload.start_time} - {result.payload.end_time}</div>
                                     </div>
                                     <div className="result-content"><p className="result-text">{result.payload.text}</p></div>
                                     {result.payload.tags && result.payload.tags.length > 0 && (<div className="result-tags">{result.payload.tags.map((tag, tagIndex) => (<span key={tagIndex} className="tag">{tag}</span>))}</div>)}
