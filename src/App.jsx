@@ -144,17 +144,17 @@ function App() {
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
         setIsSearching(true);
-        setSearchResults([]);
+        setSearchResults([]); // We'll use this for chunks now
         setStatus(""); 
         try {
-          const res = await axios.post("http://127.0.0.1:8000/search", { query: searchQuery });
-          setSearchResults(res.data.results || []);
+            const res = await axios.post("http://127.0.0.1:8000/search", { query: searchQuery });
+            setSearchResults(res.data.chunks || []); // Use chunks!
         } catch (error) {
-          console.error("Search error:", error);
-          const errorMsg = error.response?.data?.detail || "An unknown error occurred.";
-          setStatus(`❌ Search failed: ${errorMsg}`);
+            console.error("Search error:", error);
+            const errorMsg = error.response?.data?.detail || "An unknown error occurred.";
+            setStatus(`❌ Search failed: ${errorMsg}`);
         } finally {
-          setIsSearching(false);
+            setIsSearching(false);
         }
     };
 
@@ -423,25 +423,95 @@ function App() {
                 </div>
                 
                 {searchResults.length > 0 && (
-                    <div className="card">
-                        <div className="card-header">
-                           <h3><div className="header-main"><ResultsIcon /> Search Results</div> <span className="results-count">{searchResults.length} found</span></h3>
-                        </div>
-                        <ul className="results-list">
-                            {searchResults.map((result, index) => (
-                                <li key={result.id || index} className="result-item">
-                                    <div className="result-header">
-                                        <div className="score-badge">Relevance: {(result.score * 100).toFixed(1)}%</div>
-                                        <div className="time-badge">⏱️ {result.payload.start_time} - {result.payload.end_time}</div>
-                                    </div>
-                                    <div className="result-content"><p className="result-text">{result.payload.text}</p></div>
-                                    {result.payload.tags && result.payload.tags.length > 0 && (<div className="result-tags">{result.payload.tags.map((tag, tagIndex) => (<span key={tagIndex} className="tag">{tag}</span>))}</div>)}
-                                </li>
-                            ))}
-                        </ul>
+                  <div className="card">
+                    <div className="card-header">
+                      <h3>
+                        <div className="header-main"><ResultsIcon /> Search Results</div>
+                        <span className="results-count">{searchResults.length} found</span>
+                      </h3>
                     </div>
+                    <ul className="results-list">
+                      {searchResults.map((chunk, index) => {
+                        const payload = chunk || {};
+                        const text = payload.original_text ?? payload.text ?? "No text content.";
+                        const transcriptName = payload.transcript_name || payload.satsang_name || "Unknown Transcript";
+                        const timestamp = payload.timestamp ?? null;
+                        const start = payload.start_time ?? null;
+                        const end = payload.end_time ?? null;
+                        const bioExtractions = payload.biographical_extractions || {};
+                        const entities = payload.entities || {};
+                        const tags = Array.isArray(payload.tags) ? payload.tags : [];
+
+                        return (
+                          <li key={chunk.id || index} className="result-item">
+                            <div className="result-header">
+                              <div className="score-badge">
+                                Relevance: {chunk.score ? (chunk.score * 100).toFixed(1) : "N/A"}%
+                              </div>
+                              <div className="time-badge">
+                                ⏱️ {timestamp ? timestamp : (start && end ? `${start} - ${end}` : "?")}
+                              </div>
+                              <div className="time-badge">
+                                {transcriptName}
+                              </div>
+                            </div>
+                            <div className="result-content">
+                              <p className="result-text">{text}</p>
+                              {/* Bio Extractions */}
+                              {bioExtractions && Object.values(bioExtractions).some(arr => Array.isArray(arr) && arr.length > 0) && (
+                                <div className="bio-extractions">
+                                  <h4>Biographical Extractions</h4>
+                                  <ul>
+                                    {Object.entries(bioExtractions).map(([category, items]) =>
+                                      Array.isArray(items) && items.length > 0 ? (
+                                        <li key={category}>
+                                          <strong>{category.replace(/_/g, " ")}:</strong>
+                                          <span>{items.join(", ")}</span>
+                                        </li>
+                                      ) : null
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+                              {/* Entities */}
+                              {entities && Object.values(entities).some(arr => Array.isArray(arr) && arr.length > 0) && (
+                                <div className="entities">
+                                  <h4>Extracted Entities</h4>
+                                  <ul>
+                                    {Object.entries(entities).map(([category, items]) =>
+                                      Array.isArray(items) && items.length > 0 ? (
+                                        <li key={category}>
+                                          <strong>{category.replace(/_/g, " ")}:</strong>
+                                          <span>{items.join(", ")}</span>
+                                        </li>
+                                      ) : null
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                            {/* Tags */}
+                            {tags.length > 0 && (
+                              <div className="result-tags">
+                                {tags.map((tag, tagIndex) => (
+                                  <span key={tagIndex} className="tag">{tag}</span>
+                                ))}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
-                {searchQuery && searchResults.length === 0 && !isSearching && (<div className="card"><div className="no-results"><h3>No results found</h3><p>Try adjusting your search query.</p></div></div>)}
+                {searchQuery && searchResults.length === 0 && !isSearching && (
+    <div className="card">
+        <div className="no-results">
+            <h3>No results found</h3>
+            <p>Try adjusting your search query.</p>
+        </div>
+    </div>
+)}
             </div>
         </div>
     );
