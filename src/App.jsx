@@ -48,7 +48,7 @@ function App() {
     // ... (your existing useEffect and handle functions)
     const fetchAllTranscriptStatuses = async () => {
         try {
-            const res = await axios.get("http://127.0.0.1:10000/transcripts/status");
+            const res = await axios.get("http://127.0.0.1:8000/transcripts/status");
             setAllTranscripts(res.data.transcripts || []);
         } catch (error) {
             console.error("Failed to fetch transcript statuses:", error);
@@ -69,7 +69,7 @@ function App() {
             setIsLoadingChunks(true);
             setSatsangChunks([]);
             try {
-                const res = await axios.get(`http://127.0.0.1:10000/transcripts/${selectedBrowseSatsang}/chunks`);
+                const res = await axios.get(`http://127.0.0.1:8000/transcripts/${selectedBrowseSatsang}/chunks`);
                 setSatsangChunks(res.data.chunks || []);
                  console.log("API Response for Specific Transcript:", res.data);
                  const chunksFromApi = res.data.chunks || [];
@@ -94,7 +94,7 @@ function App() {
         setStatus(`⚙️ Running bio-extraction for "${selectedAnalysisSatsang}"...`);
 
         try {
-            const res = await axios.post(`http://127.0.0.1:10000/transcripts/${selectedAnalysisSatsang}/extract-bio`);
+            const res = await axios.post(`http://127.0.0.1:8000/transcripts/${selectedAnalysisSatsang}/extract-bio`);
             setStatus(`✅ Bio-extraction complete! ${res.data.chunks_updated} chunks were updated.`);
             await fetchAllTranscriptStatuses();
             setSelectedAnalysisSatsang("");
@@ -120,7 +120,7 @@ function App() {
 
         try {
             const res = await axios.post(
-                `http://127.0.0.1:10000/transcripts/${selectedEntitySatsang}/extract-entities`,
+                `http://127.0.0.1:8000/transcripts/${selectedEntitySatsang}/extract-entities`,
                 {
                     use_ai: useAI,
                     include_statistics: includeStats
@@ -167,7 +167,7 @@ function App() {
     
       try {
         setStatus("Uploading file...");
-        const res = await axios.post("http://127.0.0.1:10000/upload-transcript", formData);
+        const res = await axios.post("http://127.0.0.1:8000/upload-transcript", formData);
         setStatus("Processing response...");
         const result = res.data;
     
@@ -213,7 +213,7 @@ function App() {
         setStatus("Fetching all chunks from the database...");
 
         try {
-            const res = await axios.get("http://127.0.0.1:10000/chunks/all");
+            const res = await axios.get("http://127.0.0.1:8000/chunks/all");
             setAllChunks(res.data.chunks || []);
             setStatus(`✅ Successfully fetched ${res.data.chunks.length} chunks.`);
         } catch (error) {
