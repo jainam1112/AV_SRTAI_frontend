@@ -33,6 +33,13 @@ function App() {
     const [isLoadingChunks, setIsLoadingChunks] = useState(false);
     const [selectedAnalysisSatsang, setSelectedAnalysisSatsang] = useState("");
     const [isExtractingBio, setIsExtractingBio] = useState(false);
+    
+    // Entity extraction state
+    const [selectedEntitySatsang, setSelectedEntitySatsang] = useState("");
+    const [isExtractingEntities, setIsExtractingEntities] = useState(false);
+    const [useAI, setUseAI] = useState(true);
+    const [includeStats, setIncludeStats] = useState(true);
+    const [entityResults, setEntityResults] = useState(null);
 
     // NEW: State for the "get all chunks" feature
     const [allChunks, setAllChunks] = useState([]);
@@ -41,7 +48,7 @@ function App() {
     // ... (your existing useEffect and handle functions)
     const fetchAllTranscriptStatuses = async () => {
         try {
-            const res = await axios.get("http://127.0.0.1:8000/transcripts/status");
+            const res = await axios.get("http://127.0.0.1:10000/transcripts/status");
             setAllTranscripts(res.data.transcripts || []);
         } catch (error) {
             console.error("Failed to fetch transcript statuses:", error);
@@ -62,7 +69,7 @@ function App() {
             setIsLoadingChunks(true);
             setSatsangChunks([]);
             try {
-                const res = await axios.get(`http://127.0.0.1:8000/transcripts/${selectedBrowseSatsang}/chunks`);
+                const res = await axios.get(`http://127.0.0.1:10000/transcripts/${selectedBrowseSatsang}/chunks`);
                 setSatsangChunks(res.data.chunks || []);
                  console.log("API Response for Specific Transcript:", res.data);
                  const chunksFromApi = res.data.chunks || [];
@@ -87,7 +94,7 @@ function App() {
         setStatus(`⚙️ Running bio-extraction for "${selectedAnalysisSatsang}"...`);
 
         try {
-            const res = await axios.post(`http://127.0.0.1:8000/transcripts/${selectedAnalysisSatsang}/extract-bio`);
+            const res = await axios.post(`http://127.0.0.1:10000/transcripts/${selectedAnalysisSatsang}/extract-bio`);
             setStatus(`✅ Bio-extraction complete! ${res.data.chunks_updated} chunks were updated.`);
             await fetchAllTranscriptStatuses();
             setSelectedAnalysisSatsang("");
@@ -98,6 +105,46 @@ function App() {
             setStatus(`❌ Bio-extraction failed: ${errorMsg}`);
         } finally {
             setIsExtractingBio(false);
+        }
+    };
+
+    const handleRunEntityExtraction = async () => {
+        if (!selectedEntitySatsang) {
+            setStatus("⚠️ Please select a transcript for entity extraction.");
+            return;
+        }
+
+        setIsExtractingEntities(true);
+        setEntityResults(null);
+        setStatus(`⚙️ Running entity extraction for "${selectedEntitySatsang}" using ${useAI ? 'AI' : 'rule-based'} method...`);
+
+        try {
+            const res = await axios.post(
+                `http://127.0.0.1:10000/transcripts/${selectedEntitySatsang}/extract-entities`,
+                {
+                    use_ai: useAI,
+                    include_statistics: includeStats
+                }
+            );
+            
+            const result = res.data;
+            setEntityResults(result);
+            
+            if (result.entity_statistics) {
+                const stats = result.entity_statistics;
+                setStatus(`✅ Entity extraction complete! ${result.chunks_updated} chunks updated. Found ${stats.chunks_with_entities} chunks with entities using ${result.method_used} method.`);
+            } else {
+                setStatus(`✅ Entity extraction complete! ${result.chunks_updated} chunks were updated using ${result.method_used} method.`);
+            }
+            
+            await fetchAllTranscriptStatuses();
+            
+        } catch (error) {
+            console.error("Entity extraction failed:", error);
+            const errorMsg = error.response?.data?.detail || "An unknown error occurred.";
+            setStatus(`❌ Entity extraction failed: ${errorMsg}`);
+        } finally {
+            setIsExtractingEntities(false);
         }
     };
 
@@ -120,7 +167,7 @@ function App() {
     
       try {
         setStatus("Uploading file...");
-        const res = await axios.post("http://127.0.0.1:8000/upload-transcript", formData);
+        const res = await axios.post("http://127.0.0.1:10000/upload-transcript", formData);
         setStatus("Processing response...");
         const result = res.data;
     
@@ -147,7 +194,7 @@ function App() {
         setSearchResults([]);
         setStatus(""); 
         try {
-          const res = await axios.post("http://127.0.0.1:8000/search", { query: searchQuery });
+          const res = await axios.post("http://127.0.0.1:10000/search", { query: searchQuery });
           setSearchResults(res.data.results || []);
         } catch (error) {
           console.error("Search error:", error);
@@ -166,7 +213,7 @@ function App() {
         setStatus("Fetching all chunks from the database...");
 
         try {
-            const res = await axios.get("http://127.0.0.1:8000/chunks/all");
+            const res = await axios.get("http://127.0.0.1:10000/chunks/all");
             setAllChunks(res.data.chunks || []);
             setStatus(`✅ Successfully fetched ${res.data.chunks.length} chunks.`);
         } catch (error) {
@@ -274,6 +321,146 @@ function App() {
                         </button>
                     </div>
                 </div>
+
+                {/* Entity Extraction Card */}
+                <div className="card">
+                    <div className="card-header">
+                        <h2><DatabaseIcon /> Entity Extraction</h2>
+                        <p>Extract 8 types of entities: people, places, concepts, scriptures, dates, organizations, events, and objects.</p>
+                    </div>
+                    <div className="analysis-form">
+                        <select 
+                            value={selectedEntitySatsang} 
+                            onChange={e => setSelectedEntitySatsang(e.target.value)} 
+                            className="browse-select"
+                            disabled={allTranscripts.length === 0}
+                        >
+                            <option value="" disabled>
+                                {allTranscripts.length > 0 
+                                    ? '-- Select a Transcript for Entity Extraction --'
+                                    : 'No transcripts available'
+                                }
+                            </option>
+                            {allTranscripts.map((t) => (
+                                <option key={t.transcript_name} value={t.transcript_name}>{t.transcript_name}</option>
+                            ))}
+                        </select>
+                        
+                        <div className="extraction-options">
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={useAI}
+                                    onChange={(e) => setUseAI(e.target.checked)}
+                                />
+                                <span className="checkmark"></span>
+                                Use AI Extraction (more accurate but slower)
+                            </label>
+                            
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={includeStats}
+                                    onChange={(e) => setIncludeStats(e.target.checked)}
+                                />
+                                <span className="checkmark"></span>
+                                Include detailed statistics
+                            </label>
+                        </div>
+                        
+                        <button 
+                            onClick={handleRunEntityExtraction} 
+                            disabled={!selectedEntitySatsang || isExtractingEntities} 
+                            className="action-btn run-extraction-btn"
+                        >
+                            {isExtractingEntities ? <><LoaderIcon /> Extracting...</> : <><DatabaseIcon /> Extract Entities</>}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Entity Extraction Results */}
+                {entityResults && (
+                    <div className="card">
+                        <div className="card-header">
+                            <h3>Entity Extraction Results for "{entityResults.transcript_name}"</h3>
+                        </div>
+                        <div className="extraction-results">
+                            <div className="summary">
+                                <h4>Summary</h4>
+                                <div className="summary-grid">
+                                    <div className="summary-item">
+                                        <span className="label">Status:</span>
+                                        <span className="value">{entityResults.status}</span>
+                                    </div>
+                                    <div className="summary-item">
+                                        <span className="label">Method:</span>
+                                        <span className="value">{entityResults.method_used}</span>
+                                    </div>
+                                    <div className="summary-item">
+                                        <span className="label">Chunks Processed:</span>
+                                        <span className="value">{entityResults.chunks_processed}</span>
+                                    </div>
+                                    <div className="summary-item">
+                                        <span className="label">Chunks Updated:</span>
+                                        <span className="value">{entityResults.chunks_updated}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {entityResults.entity_statistics && (
+                                <div className="statistics">
+                                    <h4>Entity Statistics</h4>
+                                    <div className="stats-grid">
+                                        <div className="stat-card">
+                                            <h5>Overview</h5>
+                                            <div className="stat-item">
+                                                <span>Total Chunks:</span>
+                                                <span>{entityResults.entity_statistics.total_chunks}</span>
+                                            </div>
+                                            <div className="stat-item">
+                                                <span>Chunks with Entities:</span>
+                                                <span>{entityResults.entity_statistics.chunks_with_entities}</span>
+                                            </div>
+                                            <div className="stat-item">
+                                                <span>Self-Reference Chunks:</span>
+                                                <span>{entityResults.entity_statistics.self_reference_chunks}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="stat-card">
+                                            <h5>Entity Counts</h5>
+                                            {Object.entries(entityResults.entity_statistics.entity_counts).map(([type, count]) => (
+                                                <div key={type} className="stat-item">
+                                                    <span>{type.charAt(0).toUpperCase() + type.slice(1)}:</span>
+                                                    <span>{count}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="stat-card unique-entities">
+                                            <h5>Unique Entities Found</h5>
+                                            {Object.entries(entityResults.entity_statistics.unique_entities).map(([type, entities]) => (
+                                                entities.length > 0 && (
+                                                    <div key={type} className="entity-group">
+                                                        <strong>{type.charAt(0).toUpperCase() + type.slice(1)}:</strong>
+                                                        <div className="entity-tags">
+                                                            {entities.slice(0, 5).map((entity, idx) => (
+                                                                <span key={idx} className="entity-tag">{entity}</span>
+                                                            ))}
+                                                            {entities.length > 5 && (
+                                                                <span className="entity-tag more">+{entities.length - 5} more</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* ... (Browse Section is unchanged) ... */}
                  <div className="card">
